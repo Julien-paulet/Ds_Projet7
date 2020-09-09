@@ -72,6 +72,7 @@ predictions = model.predict_proba(X_test)
 pred_df = pd.DataFrame(predictions[:,0], index=X_test.index, columns=['PREDICT'])
 pred_df['PREDICT_BOOL'] = np.where(pred_df['PREDICT']>0.50, 'YES', 'NO')
 df = pd.merge(application_test, pred_df, left_index=True, right_index=True, how='inner')
+df_ = pd.merge(application_test, pred_df, left_index=True, right_index=True, how='inner')
 
 # Saving to change in the graph
 available_indicators = df.drop(columns=['PREDICT_BOOL', 'PREDICT']).columns
@@ -133,18 +134,30 @@ app.layout = html.Div([
 
 def update_graph(xaxis_column_name):
     dff = df.copy()
-
-    df_mean = dff.drop(columns=['PREDICT'])
-
-    df_mean = df_mean.groupby(['PREDICT_BOOL']).mean().reset_index()
-
-    fig = px.histogram(df_mean, x=df_mean['PREDICT_BOOL'],
-                       y=xaxis_column_name, hover_data=df_mean.columns,
-                       color=df_mean['PREDICT_BOOL'],
-                       title="Mean Value of the Feature by Answer")
     
-    fig.update_xaxes(title='IS LOAN GRANTED')
-    fig.update_layout(margin={'l': 40, 'b': 40, 't': 30, 'r': 0}, hovermode='closest')
+    # If columns is numeric we get a figure, if not we get nothing
+    if (dff[xaxis_column_name].dtypes == int) or (dff[xaxis_column_name].dtypes == float):    
+        df_mean = dff.drop(columns=['PREDICT'])
+
+        df_mean = df_mean.groupby(['PREDICT_BOOL']).mean().reset_index()
+
+        fig = px.histogram(df_mean, x=df_mean['PREDICT_BOOL'],
+                           y=xaxis_column_name, hover_data=df_mean.columns,
+                           color=df_mean['PREDICT_BOOL'],
+                           title="Mean Value of the Feature by Answer")
+
+        fig.update_xaxes(title='IS LOAN GRANTED')
+        fig.update_layout(margin={'l': 40, 'b': 40, 't': 30, 'r': 0}, hovermode='closest')
+        
+    else:
+        df_mean = dff.drop(columns=['PREDICT'])
+        df_mean['COUNT'] = 1
+        df_mean = df_mean.groupby(['PREDICT_BOOL', xaxis_column_name]).sum().reset_index()
+        df_mean = df_mean.set_index(['PREDICT_BOOL', xaxis_column_name])['COUNT']
+
+        fig = px.imshow(df_mean.unstack(), 
+                        title="Heatmap")
+        fig.update_layout(margin={'l': 40, 'b': 40, 't': 30, 'r': 0}, hovermode='closest')
 
     return fig
 
@@ -163,7 +176,7 @@ def all_graph(xaxis_column_name, customer):
                        title="Descriptive Analysis by Customer")
 
 
-    fig.update_xaxes(title=xaxis_column_name, type='linear')
+    fig.update_xaxes(title=xaxis_column_name)
 
     fig.update_yaxes(title='COUNT', type='linear')
 
